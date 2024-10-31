@@ -9,6 +9,11 @@ from matplotlib import colors
 
 import seaborn as sns
 
+from sklearn.metrics import mutual_info_score
+from sklearn.preprocessing import PowerTransformer
+
+import scipy.stats as stats
+
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 def countplot(df, cat_col = '', stat='count', palette='plasma', show_vals=False, ax=None):
@@ -127,7 +132,7 @@ def histobox2(df, feature, bins=25, kde=False, box_mean=True, hist_color=('silve
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 5))
 
-    ax1 = sns.histplot(df, x=feature, bins=bins, color=hist_color, element=element, kde=kde, ax=ax)
+    ax1 = sns.histplot(df, x=df[feature], bins=bins, color=hist_color, element=element, kde=kde, ax=ax)
     
     ax2 = ax1.twinx()
     sns.boxplot(df, x=feature, 
@@ -162,7 +167,6 @@ def histobox2(df, feature, bins=25, kde=False, box_mean=True, hist_color=('silve
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
-
 def histobox(df, features, bins=25, kde=False, box_mean=True, hist_color=('silver', 1), 
              box_color=('blue', 0.4), element='bars', axes=None):
     if isinstance(features, str):
@@ -185,6 +189,11 @@ def histobox(df, features, bins=25, kde=False, box_mean=True, hist_color=('silve
             axes = axes.flatten()
     
     for i, feature in enumerate(features):
+        data = df[feature].dropna()  
+        
+        mean_val = data.mean()
+        median_val = data.median()
+        
         ax1 = sns.histplot(df, x=df[feature], bins=bins, color=hist_color, element=element, kde=kde, ax=axes[i])
         
         ax2 = ax1.twinx()  
@@ -281,7 +290,8 @@ def histogram_and_boxplot(df, num_col='', bins=20,
     axes[0].spines['right'].set_visible(False)
 
     axes[1].get_yaxis().set_ticks([])
-
+    plt.suptitle(f'Histogram and Boxplot of {num_col}')
+    plt.tight_layout()
     plt.show()
 
 # -----------------------------------------------------------------------------------------------------------------------------------
@@ -291,18 +301,14 @@ def plot_histogram(df, num_feature, bins=25, kde=False, hist_color='silver', alp
     if ax is None:
         fig, ax = plt.subplots(figsize=(7, 5))
 
-    # Plot histogram
     sns.histplot(df, x=num_feature, bins=bins, kde=kde, color=hist_color, alpha=alpha, ax=ax)
 
-    # Set title and labels
     ax.set_title(f'{num_feature} Histogram')
     ax.set_xlabel(num_feature)
     ax.set_ylabel('Frequency')
 
-    # Remove the right spine
     ax.spines['right'].set_visible(False)
 
-    # If ax is None, show the plot
     if ax is None:
         plt.tight_layout()
         plt.show()
@@ -355,11 +361,17 @@ def plot_boxplot(df, feature, box_color=('blue', 0.4), box_mean=True, show_mean=
 
 def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False, show_values=False, palette='plasma', group_size=5):
 
+    # super important for color continuity. Turns out seaborn treats numbers and text diffferently when they are category classes
+    df[cat_col1] = df[cat_col1].astype(str)
+    df[cat_col2] = df[cat_col2].astype(str)
+
     count_data = df.groupby([cat_col1, cat_col2]).size().reset_index(name='count')
     total_counts = df[cat_col1].value_counts()
     
     if relative_freq:
         count_data['count'] = count_data.apply(lambda x: x['count'] / total_counts[x[cat_col1]], axis=1)
+
+    miScore = mutual_info_score(df[cat_col1], df[cat_col2])
 
     unique_categories = df[cat_col1].unique()
     if len(unique_categories) > group_size:
@@ -371,9 +383,9 @@ def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False,
             data_subset = count_data[count_data[cat_col1].isin(categories_subset)]
 
             plt.figure(figsize=(10, 6))
-            ax = sns.barplot(x=cat_col1, y='count', hue=cat_col2, data=data_subset, order=categories_subset)
+            ax = sns.barplot(data=data_subset, x=cat_col1, y='count', order=categories_subset, hue=cat_col2, palette=palette)
 
-            plt.title(f'Relationship between {cat_col1} & {cat_col2} - Group {i + 1}')
+            plt.title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info:{miScore:.5f}')
             plt.xlabel(cat_col1)
             plt.ylabel('Frequency' if relative_freq else 'Count')
             plt.xticks(rotation=45)
@@ -388,9 +400,9 @@ def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False,
 
     else:
         plt.figure(figsize=(10, 6))
-        ax = sns.barplot(x=cat_col1, y='count', hue=cat_col2, palette=palette, data=count_data)
+        ax = sns.barplot(data=count_data, x=cat_col1, y='count', hue=cat_col2, palette=palette)
 
-        plt.title(f'Relationship between {cat_col1} & {cat_col2}')
+        plt.title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info:{miScore:.5f}')
         plt.xlabel(cat_col1)
         plt.ylabel('Frequency' if relative_freq else 'Count')
         plt.xticks(rotation=45)
@@ -406,7 +418,7 @@ def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False,
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 def dispersion(df, x='', y='', s=20):
-    sns.scatterplot(data=df, x=x, y=x, s=20)
+    sns.scatterplot(data=df, x=x, y=y, s=20)
     plt.title(f'Dispersion Diagram of {x} against {y}')
     plt.grid(True)
     print(f"Correlation: {df[[x, y]].corr().iloc[0, 1]}")
@@ -444,7 +456,132 @@ def heatmap(df, columns = [], cmap = 'plasma'):
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
+def qq_plot_with_shapiro(data, feature_name, ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+
+    stat, p_value = stats.shapiro(data)
+    alpha = 0.05
+    normality_text = "Fail to reject H0: Data appears normally distributed." if p_value > alpha else "Reject H0: Data does not appear normally distributed."
+
+    # Q-Q Plot
+    stats.probplot(data, dist="norm", plot=ax)
+    ax.set_title(f'Q-Q Plot of {feature_name}')
+
+    # Add Shapiro-Wilk test result on the plot
+    ax.text(0.95, 0.05, f'Statistic: {stat:.5f}\np-value: {p_value:.5f}\n{normality_text}', 
+            transform=ax.transAxes, fontsize=10, verticalalignment='bottom', horizontalalignment='right',
+            bbox=dict(facecolor='white', alpha=0.7))
+
+    return ax
+
+# -----------------------------------------------------------------------------------------------------------------------------------
 
 
+def transform_distributions(df, num_col, transformations=('log', 'boxcox', 'sqrt', 'squared', 'yeo-johnson')):
+    
+    # Create a new DataFrame to hold the original and transformed features
+    transformed_df = pd.DataFrame({f'Original {num_col}': df[num_col]})
+
+    n_rows = len(transformations) + 1  # +1 for the original data
+    fig, axes = plt.subplots(n_rows, 2, figsize=(15, 5 * n_rows))
+
+    if len(transformations) == 1:
+        axes = np.expand_dims(axes, axis=0)  # Ensure axes is a 2D array if there's only one transformation
+
+    # Row 1: Original Data
+    histobox(df, features=num_col, axes=[axes[0, 0]], kde=True)
+    qq_plot_with_shapiro(df[num_col], feature_name=f'Original {num_col}', ax=axes[0, 1])
+
+    # Initialize the PowerTransformers
+    pt_boxcox = PowerTransformer(method='box-cox', standardize=False)
+    pt_yeojohnson = PowerTransformer(method='yeo-johnson', standardize=False)
+
+    # Process each transformation
+    for i, transform in enumerate(transformations):
+        if transform == 'log':
+            if (df[num_col] <= 0).any():
+                shift_value = abs(min(df[num_col])) + 1
+                transformed_data = np.log(df[num_col] + shift_value)
+            else:
+                transformed_data = np.log1p(df[num_col])
+            feature_name = f'Log-transformed {num_col}'
+        
+        elif transform == 'squared':
+            transformed_data = np.square(df[num_col])
+            feature_name = f'Squared {num_col}'
+        
+        elif transform == 'sqrt':
+            if (df[num_col] < 0).any():
+                shift_value = abs(min(df[num_col])) + 1
+                transformed_data = np.sqrt(df[num_col] + shift_value)
+            else:
+                transformed_data = np.sqrt(df[num_col])
+            feature_name = f'Square root of {num_col}'
+        
+        elif transform == 'boxcox':
+            if (df[num_col] > 0).all():
+                transformed_data = pt_boxcox.fit_transform(df[[num_col]]).flatten()
+            else:
+                shift_value = abs(min(df[num_col])) + 1
+                transformed_data = pt_boxcox.fit_transform((df[num_col] + shift_value).values.reshape(-1, 1)).flatten()
+            feature_name = f'Box-Cox Transformed {num_col}'
+        
+        elif transform == 'yeo-johnson':
+            transformed_data = pt_yeojohnson.fit_transform(df[[num_col]]).flatten()
+            feature_name = f'Yeo-Johnson Transformed {num_col}'
+        
+        else:
+            print(f"Unknown transformation: {transform}")
+            continue
+
+        # Add transformed data to the new DataFrame
+        transformed_df[feature_name] = transformed_data
+
+        # Plot for the transformed data (i+1 to account for original data in row 0)
+        histobox(transformed_df, features=feature_name, axes=[axes[i + 1, 0]], kde=True)
+        qq_plot_with_shapiro(transformed_data, feature_name=feature_name, ax=axes[i + 1, 1])
+
+    plt.tight_layout()
+    plt.show()
+
+# -----------------------------------------------------------------------------------------------------------------------------------
 
 
+def transform_col(df, col, transformation):
+    pt_boxcox = PowerTransformer(method='box-cox', standardize=False)
+    pt_yeojohnson = PowerTransformer(method='yeo-johnson', standardize=False)
+
+    if transformation == 'log':
+        if (df[col] <= 0).any():
+            shift_value = abs(min(df[col])) + 1
+            df[f'log_{col}'] = np.log(df[col] + shift_value)
+        else:
+            df[f'log_{col}'] = np.log1p(df[col])
+
+    elif transformation == 'squared':
+        df[f'squared_{col}'] = np.square(df[col])
+
+    elif transformation == 'sqrt':
+        if (df[col] < 0).any():
+            shift_value = abs(min(df[col])) + 1
+            df[f'sqrt_{col}'] = np.sqrt(df[col] + shift_value)
+        else:
+            df[f'sqrt_{col}'] = np.sqrt(df[col])
+
+    elif transformation == 'boxcox':
+        if (df[col] > 0).all():
+            df[f'boxcox_{col}'] = pt_boxcox.fit_transform(df[[col]]).flatten()
+        else:
+            shift_value = abs(min(df[col])) + 1
+            df[f'boxcox_{col}'] = pt_boxcox.fit_transform((df[col] + shift_value).values.reshape(-1, 1)).flatten()
+
+    elif transformation == 'yeo-johnson':
+        df[f'yeojohnson_{col}'] = pt_yeojohnson.fit_transform(df[[col]]).flatten()
+
+    else:
+        raise ValueError(f"Unknown transformation: {transformation}")
+
+    return None
+
+# -----------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,6 @@
+README.md
+setup.py
+viztools.egg-info/PKG-INFO
+viztools.egg-info/SOURCES.txt
+viztools.egg-info/dependency_links.txt
+viztools.egg-info/top_level.txt
