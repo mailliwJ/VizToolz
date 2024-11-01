@@ -8,3 +8,6 @@ A script of useful functions for visualization was shared with students to use f
 and i have been editting and adding to these functions throughout the course. Some of the functions in this module
 are completely new and i have made based on specific use cases that have been recurring throughout the course. Other
 functions have simply been tweaked to meet my own needs and idiosyncracies.
+
+The latest addition to this module is that i have packaged it for easier use across future projects and to avoid having
+the script saved in multiple directories.
