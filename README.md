@@ -10,8 +10,9 @@ the script saved in multiple directories.
 
 the following table provides a summary of the functions in my Viztoolz module:
 
-|Function|Description|Params|
+|Function|Description|
 |-|-|
+|`countplot()`||
 |||
 |||
 |||
@@ -19,4 +20,4 @@ the following table provides a summary of the functions in my Viztoolz module:
 |||
 |||
 |||
-|||
+
