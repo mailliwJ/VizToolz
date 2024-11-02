@@ -7,3 +7,16 @@ The basic idea came from a Bootcamp i am currently completing with The Bridge Di
 
 The latest addition to this project is that i have packaged it for easier use across future projects and to avoid having
 the script saved in multiple directories.
+
+the following table provides a summary of the functions in my Viztoolz module:
+
+|Function|Description|Params|
+|-|-|
+|||
+|||
+|||
+|||
+|||
+|||
+|||
+|||
