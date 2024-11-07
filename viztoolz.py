@@ -2,6 +2,7 @@
 
 import pandas as pd
 import numpy as np
+import math
 
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
@@ -17,7 +18,7 @@ import scipy.stats as stats
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 def countplot(df, cat_col='', stat='count', palette='plasma', show_values=False, max_cols=3, ax=None):
-    # Check `cat_col` is treated as a list if it's a single column
+    # Ensure `cat_col` is treated as a list if it's a single column
     if isinstance(cat_col, str):
         cat_col = [cat_col]
     
@@ -25,6 +26,8 @@ def countplot(df, cat_col='', stat='count', palette='plasma', show_values=False,
     num_cols = len(cat_col)
     if stat == 'both':
         fig, axes = plt.subplots(num_cols, 2, figsize=(10, 5 * num_cols))
+        if num_cols == 1:
+            axes = [axes]  # Ensure `axes` is a list if there's only one subplot pair
     else:
         num_rows = (num_cols + max_cols - 1) // max_cols  # Calculate rows needed based on max_cols
         fig, axes = plt.subplots(num_rows, max_cols, figsize=(5 * max_cols, 5 * num_rows))
@@ -41,24 +44,30 @@ def countplot(df, cat_col='', stat='count', palette='plasma', show_values=False,
         # Handle each plotting type based on stat
         if stat == 'count':
             sns.countplot(df, x=col, hue=col, order=cat_sorted_count, palette=palette, ax=axes[i], legend=False)
-            axes[i].set_title(f'Countplot of {col} (Count)')
+            axes[i].set_title(f'Raw Count for {col}')
         
         elif stat == 'percent':
             sns.countplot(df, x=col, hue=col, order=cat_sorted_percent, palette=palette, ax=axes[i], legend=False, stat='percent')
-            axes[i].set_title(f'Countplot of {col} (Percent)')
+            axes[i].set_title(f'Normalized Count for {col}')
         
         elif stat == 'both':
+            # Check if there are two subplots for this column, otherwise use single axis
+            if isinstance(axes[i], np.ndarray):
+                ax_count, ax_percent = axes[i]
+            else:
+                ax_count, ax_percent = axes  # Single column case
+
             # Plot raw count
-            sns.countplot(df, x=col, hue=col, order=cat_sorted_count, palette=palette, ax=axes[i][0], legend=False)
-            axes[i][0].set_title(f'Raw Count for {col}')
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_count, palette=palette, ax=ax_count, legend=False)
+            ax_count.set_title(f'Raw Count for {col}')
             
             # Plot percent count
-            sns.countplot(df, x=col, hue=col, order=cat_sorted_percent, palette=palette, ax=axes[i][1], legend=False, stat='percent')
-            axes[i][1].set_title(f'Normalized Count for {col}')
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_percent, palette=palette, ax=ax_percent, legend=False, stat='percent')
+            ax_percent.set_title(f'Normalized Count for {col}')
         
         # Show values if show_values is True
         if show_values:
-            ax_list = axes[i] if stat == 'both' else [axes[i]]
+            ax_list = [ax_count, ax_percent] if stat == 'both' else [axes[i]]
             for ax in ax_list:
                 for p in ax.patches:
                     height = p.get_height()
@@ -155,46 +164,71 @@ def plotAll4(data, cat_col='', num_col='', show_mean = False, kde=True, element=
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 def histobox2(df, feature, bins=25, kde=False, box_mean=True, hist_color=('silver', 1), 
-             box_color=('blue', 0.4), element='bars', ax=None):
-    # Ensure feature is a single column since plotAll4 passes one column
-    if isinstance(feature, list):
-        feature = feature[0]
+              box_color=('blue', 0.4), element='bars', max_cols=3, ax=None):
     
-    hist_color = colors.to_rgba(hist_color[0], hist_color[1])
-    box_color = colors.to_rgba(box_color[0], box_color[1])
+    # Handle multiple columns by converting single column to list if needed
+    if isinstance(feature, str):
+        feature = [feature]
     
+    # Calculate grid size based on the number of columns
+    n_cols = min(len(feature), max_cols)  # Use max_cols or number of features, whichever is smaller
+    n_rows = math.ceil(len(feature) / n_cols)
+    
+    # Initialize subplots if `ax` is not provided
     if ax is None:
-        fig, ax = plt.subplots(figsize=(7, 5))
+        fig, axes = plt.subplots(n_rows, n_cols, figsize=(5 * n_cols, 5 * n_rows))
+        if n_rows * n_cols == 1:
+            axes = [axes]  # Convert single Axes to a list for consistency
+        else:
+            axes = axes.flatten()  # Flatten if multiple subplots
+    else:
+        axes = [ax]  # If ax is provided, make it a list to handle similarly
 
-    ax1 = sns.histplot(df, x=df[feature], bins=bins, color=hist_color, element=element, kde=kde, ax=ax)
-    
-    ax2 = ax1.twinx()
-    sns.boxplot(df, x=feature, 
-                ax=ax2,
-                width=0.3,   
-                notch=True, 
-                boxprops={'facecolor':box_color,
-                          'edgecolor':colors.to_rgba('black', 1),
-                          'linewidth':0.6,
-                          'linestyle':'-',
-                          'zorder':1},
-                medianprops={'color':'red',
-                             'linewidth':1.5,
-                             'linestyle':'--',
-                             'alpha':1,
-                             'zorder': 2},
-                flierprops={'marker':'x',
-                            'markersize':5,
-                            'markerfacecolor':colors.to_rgba('blue', 1),
-                            'markeredgecolor':colors.to_rgba('blue', 1),
-                            'markeredgewidth':0.6,
-                            'zorder':2},
-                showmeans=box_mean)
+    # Loop through features to create histograms and box plots
+    for i, col in enumerate(feature):
+        current_ax = axes[i]
+        
+        # Convert colors to RGBA format for custom coloring
+        hist_color_rgba = colors.to_rgba(hist_color[0], hist_color[1])
+        box_color_rgba = colors.to_rgba(box_color[0], box_color[1])
+        
+        # Plot the histogram on the main y-axis
+        ax1 = sns.histplot(df, x=col, bins=bins, color=hist_color_rgba, element=element, kde=kde, ax=current_ax)
+        
+        # Create a twin y-axis for the box plot
+        ax2 = ax1.twinx()
+        sns.boxplot(df, x=col, 
+                    ax=ax2,
+                    width=0.3,   
+                    notch=True, 
+                    boxprops={'facecolor':box_color_rgba,
+                              'edgecolor':colors.to_rgba('black', 1),
+                              'linewidth':0.6,
+                              'linestyle':'-',
+                              'zorder':1},
+                    medianprops={'color':'red',
+                                 'linewidth':1.5,
+                                 'linestyle':'--',
+                                 'alpha':1,
+                                 'zorder': 2},
+                    flierprops={'marker':'x',
+                                'markersize':5,
+                                'markerfacecolor':colors.to_rgba('blue', 1),
+                                'markeredgecolor':colors.to_rgba('blue', 1),
+                                'markeredgewidth':0.6,
+                                'zorder':2},
+                    showmeans=box_mean)
 
-    ax1.set_title(f'{feature} Distribution')
-    ax1.set_xlabel(feature)
-    ax1.set_ylabel('Frequency')
+        # Set titles and labels
+        ax1.set_title(f'{col} Distribution')
+        ax1.set_xlabel(col)
+        ax1.set_ylabel('Frequency')
 
+    # Hide any extra subplots if not used
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+
+    # Show the plot if no external axis was provided
     if ax is None:
         plt.tight_layout()
         plt.show()
@@ -393,61 +427,86 @@ def plot_boxplot(df, feature, box_color=('blue', 0.4), box_mean=True, show_mean=
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
-def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False, show_values=False, palette='plasma', group_size=5):
-
-    # super important for color continuity. Turns out seaborn treats numbers and text diffferently when they are category classes
+def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False, show_values=False, palette='plasma', group_size=5, ax=None):
+    # Ensure categorical columns are treated as strings for color continuity in seaborn
     df[cat_col1] = df[cat_col1].astype(str)
     df[cat_col2] = df[cat_col2].astype(str)
 
+    # Calculate counts for each category combination
     count_data = df.groupby([cat_col1, cat_col2]).size().reset_index(name='count')
     total_counts = df[cat_col1].value_counts()
     
+    # Adjust counts for relative frequency if specified
     if relative_freq:
         count_data['count'] = count_data.apply(lambda x: x['count'] / total_counts[x[cat_col1]], axis=1)
 
+    # Calculate mutual information score
     miScore = mutual_info_score(df[cat_col1], df[cat_col2])
 
+    # Get unique categories to determine layout
     unique_categories = df[cat_col1].unique()
     if len(unique_categories) > group_size:
         num_plots = int(np.ceil(len(unique_categories) / group_size))
 
         for i in range(num_plots):
-
+            # Filter data for each subset of categories
             categories_subset = unique_categories[i * group_size:(i + 1) * group_size]
             data_subset = count_data[count_data[cat_col1].isin(categories_subset)]
+            
+            # Create subplot if `ax` is not provided
+            if ax is None:
+                fig, ax = plt.subplots(figsize=(10, 6))
 
-            plt.figure(figsize=(10, 6))
-            ax = sns.barplot(data=data_subset, x=cat_col1, y='count', order=categories_subset, hue=cat_col2, palette=palette)
+            # Plot the data
+            sns.barplot(data=data_subset, x=cat_col1, y='count', order=categories_subset, hue=cat_col2, palette=palette, ax=ax)
 
-            plt.title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info:{miScore:.5f}')
-            plt.xlabel(cat_col1)
-            plt.ylabel('Frequency' if relative_freq else 'Count')
-            plt.xticks(rotation=45)
+            # Set titles and labels
+            ax.set_title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info: {miScore:.5f}')
+            ax.set_xlabel(cat_col1)
+            ax.set_ylabel('Frequency' if relative_freq else 'Count')
 
+            # Rotate x-axis labels without setting tick labels directly
+            for label in ax.get_xticklabels():
+                label.set_rotation(45)
+
+            # Show values on bars if `show_values` is True
             if show_values:
                 for p in ax.patches:
                     ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2., p.get_height()),
                                 ha='center', va='center', fontsize=10, color='black', xytext=(0, group_size),
                                 textcoords='offset points')
 
-            plt.show()
+            # Only show plot if `ax` is None (external axes will handle their own display)
+            if ax is None:
+                plt.tight_layout()
+                plt.show()
 
     else:
-        plt.figure(figsize=(10, 6))
-        ax = sns.barplot(data=count_data, x=cat_col1, y='count', hue=cat_col2, palette=palette)
+        # Plot in a single figure if number of unique categories is within group size
+        if ax is None:
+            fig, ax = plt.subplots(figsize=(10, 6))
 
-        plt.title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info:{miScore:.5f}')
-        plt.xlabel(cat_col1)
-        plt.ylabel('Frequency' if relative_freq else 'Count')
-        plt.xticks(rotation=45)
+        sns.barplot(data=count_data, x=cat_col1, y='count', hue=cat_col2, palette=palette, ax=ax)
 
+        ax.set_title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info: {miScore:.5f}')
+        ax.set_xlabel(cat_col1)
+        ax.set_ylabel('Frequency' if relative_freq else 'Count')
+
+        # Rotate x-axis labels without setting tick labels directly
+        for label in ax.get_xticklabels():
+            label.set_rotation(45)
+
+        # Show values on bars if `show_values` is True
         if show_values:
             for p in ax.patches:
                 ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2., p.get_height()),
                             ha='center', va='center', fontsize=10, color='black', xytext=(0, group_size),
                             textcoords='offset points')
 
-        plt.show()
+        # Show plot if no external axis was provided
+        if ax is None:
+            plt.tight_layout()
+            plt.show()
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
