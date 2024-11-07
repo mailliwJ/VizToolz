@@ -16,29 +16,63 @@ import scipy.stats as stats
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
-def countplot(df, cat_col = '', stat='count', palette='plasma', show_vals=False, ax=None):
+def countplot(df, cat_col='', stat='count', palette='plasma', show_values=False, max_cols=3, ax=None):
+    # Check `cat_col` is treated as a list if it's a single column
+    if isinstance(cat_col, str):
+        cat_col = [cat_col]
     
-    if stat == 'count':
-        cat_sorted = df[cat_col].value_counts().index
-    if stat == 'percent':
-        cat_sorted = df[cat_col].value_counts(True).index
-    
-    if ax is None:
-        plt.figure(figsize=(15,7))
-        ax = plt.gca()
+    # Calculate number of rows and columns for subplots
+    num_cols = len(cat_col)
+    if stat == 'both':
+        fig, axes = plt.subplots(num_cols, 2, figsize=(10, 5 * num_cols))
+    else:
+        num_rows = (num_cols + max_cols - 1) // max_cols  # Calculate rows needed based on max_cols
+        fig, axes = plt.subplots(num_rows, max_cols, figsize=(5 * max_cols, 5 * num_rows))
+        axes = np.ravel(axes)  # Flatten axes for easier indexing and more memory efficient than using a flatten() call
 
-    sns.countplot(df, x=cat_col, hue=cat_col, order=cat_sorted, palette=palette, legend=False, stat=stat, ax=ax)
+    # Plot each column following stat parameter
+    for i, col in enumerate(cat_col):
+        # Sort category based on stat type using value_counts
+        if stat in ['count', 'both']:
+            cat_sorted_count = df[col].value_counts().index
+        if stat in ['percent', 'both']:
+            cat_sorted_percent = df[col].value_counts(normalize=True).index
+        
+        # Handle each plotting type based on stat
+        if stat == 'count':
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_count, palette=palette, ax=axes[i], legend=False)
+            axes[i].set_title(f'Countplot of {col} (Count)')
+        
+        elif stat == 'percent':
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_percent, palette=palette, ax=axes[i], legend=False, stat='percent')
+            axes[i].set_title(f'Countplot of {col} (Percent)')
+        
+        elif stat == 'both':
+            # Plot raw count
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_count, palette=palette, ax=axes[i][0], legend=False)
+            axes[i][0].set_title(f'Raw Count for {col}')
+            
+            # Plot percent count
+            sns.countplot(df, x=col, hue=col, order=cat_sorted_percent, palette=palette, ax=axes[i][1], legend=False, stat='percent')
+            axes[i][1].set_title(f'Normalized Count for {col}')
+        
+        # Show values if show_values is True
+        if show_values:
+            ax_list = axes[i] if stat == 'both' else [axes[i]]
+            for ax in ax_list:
+                for p in ax.patches:
+                    height = p.get_height()
+                    ax.annotate(f'{height:.2f}', (p.get_x() + p.get_width() / 2., height), 
+                                ha='center', va='center', xytext=(0, 9), textcoords='offset points')
     
-    if show_vals:
-        for p in ax.patches:
-            height = p.get_height()
-            ax.annotate(f'{height:.2f}', (p.get_x() + p.get_width() / 2., height), 
-                            ha='center', va='center', xytext=(0, 9), textcoords='offset points')
-    
-    ax.set_title(f'Countplot of {cat_col}')
+    # Hide any extra axes if not used
+    if stat != 'both':
+        for j in range(i + 1, len(axes)):
+            axes[j].set_visible(False)
 
-    if ax is None:
-        plt.show()
+    # Adjust layout and display the plot
+    plt.tight_layout()
+    plt.show()
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
