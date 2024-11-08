@@ -540,11 +540,12 @@ def heatmap(df, columns = [], cmap = 'plasma'):
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
-def phik_heatmap(df, interval_cols=None, figsize=(15,8), cmap='Blues'):
+def phikmap(df, interval_cols=None, figsize=(15,8), cmap='Blues'):
     plt.figure(figsize=figsize)
     phik_matrix_df = df.phik_matrix(interval_cols=interval_cols)
     sns.heatmap(phik_matrix_df, annot=True, fmt='.2f', cmap=cmap, square=True, linewidths=1)
     plt.title(f'HeatMap of PhiK Matrix for all features', fontdict={'fontsize': 14})
+    plt.tight_layout()
     plt.show()
 
 # -----------------------------------------------------------------------------------------------------------------------------------
