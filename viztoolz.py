@@ -501,7 +501,7 @@ def categorical_relationships(df, cat_target='', cat_features=None, relative_fre
 def dispersion(df, x='', y='', s=20):
     sns.scatterplot(data=df, x=x, y=y, s=20)
     correlation = df[[x, y]].corr().iloc[0, 1]
-    plt.title(f'Dispersion Diagram of {x} against {y}\nCorrelation: {correlation}')
+    plt.title(f'Dispersion Diagram of {x} against {y}\nCorrelation: {correlation:.4f}')
     plt.grid(True)
     return correlation
 
