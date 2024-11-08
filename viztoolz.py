@@ -151,7 +151,7 @@ def grouped_histograms(df, cat_col, num_col, group_size=None, kde=False, element
 # -----------------------------------------------------------------------------------------------------------------------------------
 
 def plotAll4(data, cat_col='', num_col='', show_mean = False, kde=True, element='step', palette='plasma', hist_color='silver', alpha=1):
-    fig, axes = plt.subplots(2,2, figsize=(20,20))
+    fig, axes = plt.subplots(2,2, figsize=(15,15))
 
     plot_histogram(data, num_col, kde=True, hist_color=hist_color, alpha=alpha, ax=axes[0,0])
     plot_boxplot(data, num_col, show_mean=show_mean, ax=axes[0,1])
@@ -500,9 +500,10 @@ def categorical_relationships(df, cat_target='', cat_features=None, relative_fre
 
 def dispersion(df, x='', y='', s=20):
     sns.scatterplot(data=df, x=x, y=y, s=20)
-    plt.title(f'Dispersion Diagram of {x} against {y}')
+    correlation = df[[x, y]].corr().iloc[0, 1]
+    plt.title(f'Dispersion Diagram of {x} against {y}\nCorrelation: {correlation}')
     plt.grid(True)
-    print(f"Correlation: {df[[x, y]].corr().iloc[0, 1]}")
+    return correlation
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
