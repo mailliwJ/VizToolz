@@ -427,86 +427,74 @@ def plot_boxplot(df, feature, box_color=('blue', 0.4), box_mean=True, show_mean=
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
-def categorical_relationships(df, cat_col1='', cat_col2='', relative_freq=False, show_values=False, palette='plasma', group_size=5, ax=None):
-    # Ensure categorical columns are treated as strings for color continuity in seaborn
-    df[cat_col1] = df[cat_col1].astype(str)
-    df[cat_col2] = df[cat_col2].astype(str)
-
-    # Calculate counts for each category combination
-    count_data = df.groupby([cat_col1, cat_col2]).size().reset_index(name='count')
-    total_counts = df[cat_col1].value_counts()
+def categorical_relationships(df, cat_target='', cat_features=None, relative_freq=False, show_values=False, palette='plasma', group_size=5):
+    # Ensure cat_features is a list
+    if cat_features is None:
+        cat_features = []
     
-    # Adjust counts for relative frequency if specified
-    if relative_freq:
-        count_data['count'] = count_data.apply(lambda x: x['count'] / total_counts[x[cat_col1]], axis=1)
+    # Prepare a list to store mutual information scores
+    mi_scores = []
 
-    # Calculate mutual information score
-    miScore = mutual_info_score(df[cat_col1], df[cat_col2])
-
-    # Get unique categories to determine layout
-    unique_categories = df[cat_col1].unique()
-    if len(unique_categories) > group_size:
-        num_plots = int(np.ceil(len(unique_categories) / group_size))
-
-        for i in range(num_plots):
-            # Filter data for each subset of categories
-            categories_subset = unique_categories[i * group_size:(i + 1) * group_size]
-            data_subset = count_data[count_data[cat_col1].isin(categories_subset)]
-            
-            # Create subplot if `ax` is not provided
-            if ax is None:
-                fig, ax = plt.subplots(figsize=(10, 6))
-
-            # Plot the data
-            sns.barplot(data=data_subset, x=cat_col1, y='count', order=categories_subset, hue=cat_col2, palette=palette, ax=ax)
-
-            # Set titles and labels
-            ax.set_title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info: {miScore:.5f}')
-            ax.set_xlabel(cat_col1)
-            ax.set_ylabel('Frequency' if relative_freq else 'Count')
-
-            # Rotate x-axis labels without setting tick labels directly
-            for label in ax.get_xticklabels():
-                label.set_rotation(45)
-
-            # Show values on bars if `show_values` is True
-            if show_values:
-                for p in ax.patches:
-                    ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2., p.get_height()),
-                                ha='center', va='center', fontsize=10, color='black', xytext=(0, group_size),
-                                textcoords='offset points')
-
-            # Only show plot if `ax` is None (external axes will handle their own display)
-            if ax is None:
-                plt.tight_layout()
-                plt.show()
-
+    # Calculate the required number of rows and columns for subplots
+    num_features = len(cat_features)
+    if num_features == 1:
+        rows, cols = 1, 1
     else:
-        # Plot in a single figure if number of unique categories is within group size
-        if ax is None:
-            fig, ax = plt.subplots(figsize=(10, 6))
+        cols = 3  # Fixed columns to match the original layout
+        rows = (num_features + cols - 1) // cols  # Calculate rows needed
+    
+    # Set up the figure and axes
+    fig, axes = plt.subplots(rows, cols, figsize=(cols * 8, rows * 6))
+    axes = axes.flatten()  # Flatten to easily index axes
 
-        sns.barplot(data=count_data, x=cat_col1, y='count', hue=cat_col2, palette=palette, ax=ax)
+    # Loop over each categorical feature
+    for i, cat_feature in enumerate(cat_features):
+        # Ensure categorical columns are treated as strings for color continuity in seaborn
+        df[cat_target] = df[cat_target].astype(str)
+        df[cat_feature] = df[cat_feature].astype(str)
 
-        ax.set_title(f'Relationship between {cat_col1} & {cat_col2}\nMutual Info: {miScore:.5f}')
-        ax.set_xlabel(cat_col1)
-        ax.set_ylabel('Frequency' if relative_freq else 'Count')
+        # Calculate counts for each category combination
+        count_data = df.groupby([cat_target, cat_feature]).size().reset_index(name='count')
+        total_counts = df[cat_target].value_counts()
 
-        # Rotate x-axis labels without setting tick labels directly
-        for label in ax.get_xticklabels():
+        # Adjust counts for relative frequency if specified
+        if relative_freq:
+            count_data['count'] = count_data.apply(lambda x: x['count'] / total_counts[x[cat_target]], axis=1)
+
+        # Calculate mutual information score
+        miScore = mutual_info_score(df[cat_target], df[cat_feature])
+        mi_scores.append({'Feature': cat_feature, 'Mutual_Info': miScore})  # Store MI score
+
+        # Plot on the current axis
+        sns.barplot(data=count_data, x=cat_target, y='count', hue=cat_feature, palette=palette, ax=axes[i])
+
+        # Set titles and labels
+        axes[i].set_title(f'Relationship between {cat_target} & {cat_feature}\nMutual Info: {miScore:.5f}')
+        axes[i].set_xlabel(cat_target)
+        axes[i].set_ylabel('Frequency' if relative_freq else 'Count')
+
+        # Rotate x-axis labels
+        for label in axes[i].get_xticklabels():
             label.set_rotation(45)
 
         # Show values on bars if `show_values` is True
         if show_values:
-            for p in ax.patches:
-                ax.annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2., p.get_height()),
-                            ha='center', va='center', fontsize=10, color='black', xytext=(0, group_size),
-                            textcoords='offset points')
+            for p in axes[i].patches:
+                axes[i].annotate(f'{p.get_height():.2f}', (p.get_x() + p.get_width() / 2., p.get_height()),
+                                 ha='center', va='center', fontsize=10, color='black', xytext=(0, group_size),
+                                 textcoords='offset points')
 
-        # Show plot if no external axis was provided
-        if ax is None:
-            plt.tight_layout()
-            plt.show()
+    # Turn off any unused subplots
+    for j in range(i + 1, len(axes)):
+        axes[j].axis('off')
+
+    plt.tight_layout()
+    plt.show()
+
+    # Convert mutual information scores to DataFrame and sort by Mutual_Info
+    mi_df = pd.DataFrame(mi_scores).sort_values(by='Mutual_Info', ascending=False).reset_index(drop=True)
+    
+    return mi_df
 
 # -----------------------------------------------------------------------------------------------------------------------------------
 
